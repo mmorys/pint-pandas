@@ -767,7 +767,7 @@ class PintDataFrameAccessor(object):
         df_columns = df_columns.drop(columns=unit_col_name)
 
         df_new = DataFrame(
-            {i: PintArray(df.values[:, i], unit) for i, unit in enumerate(units.values)}
+            {i: (PintArray(df.values[:, i], unit) if (unit and df.iloc[:,i].dtype.name != 'object') else df.values[:, i]) for i, unit in enumerate(units.values)}
         )
 
         df_new.columns = df_columns.index.droplevel(unit_col_name)
@@ -784,13 +784,19 @@ class PintDataFrameAccessor(object):
 
         df_columns = df.columns.to_frame()
         df_columns["units"] = [
-            formatter_func(df[col].values.units) for col in df.columns
+            formatter_func(df[col].values.units) if hasattr(df[col].values, 'units') else '' for col in df.columns
         ]
+        for i,unit in df_columns["units"].items():
+            if unit == 'dimensionless':
+                df_columns["units"][i] = ''
         from collections import OrderedDict
 
         data_for_df = OrderedDict()
         for i, col in enumerate(df.columns):
-            data_for_df[tuple(df_columns.iloc[i])] = df[col].values.data
+            curr_data = df[col].values
+            if not isinstance(curr_data, np.ndarray):
+                curr_data = curr_data.data
+            data_for_df[tuple(df_columns.iloc[i])] = curr_data
         df_new = DataFrame(data_for_df, columns=data_for_df.keys())
 
         df_new.columns.names = df.columns.names + ["unit"]
